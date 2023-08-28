@@ -2,7 +2,7 @@
 
 ## Overview
 
-This Serverless plugin automates the integration of the Axiom layer into your Serverless functions.
+This Serverless plugin automates the integration of the [Axiom layer](https://github.com/axiomhq/axiom-lambda-extension) into your Serverless functions.
 
 ## Installation
 
