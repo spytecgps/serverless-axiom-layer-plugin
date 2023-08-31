@@ -23,8 +23,8 @@ Specify the Axiom layer version you want to use:
 ```yaml
 custom:
   axiom:
-    account: YOUR_AXIOM_ACCOUNT          # Default: 694952825951
-    layerVersion: YOUR_AXIOM_LAYER_VERSION  # Default: 4
+    account: YOUR_AXIOM_ACCOUNT                     # Default: 694952825951
+    layerVersion: YOUR_AXIOM_LAYER_VERSION          # Default: 4
     defaultArchitecture: YOUR_DEFAULT_ARCHITECTURE  # Default: x86_64
 ```
 
