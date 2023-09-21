@@ -1,44 +1,28 @@
-type ServerlessInstance = {
-  service: {
-    custom: any;
-    getAllFunctions: () => string[];
-    getFunction: (name: string) => any;
-    provider: {
-      region: string;
-    };
-  };
-  providers: {
-    aws: {
-      sdk: any;
-    };
-  };
-  cli: {
-    log: (message: string) => void;
-  };
-};
+import * as Serverless from 'serverless';
 
-type Options = {
-  function?: string;
-};
+export interface ExtendedFunctionDefinition extends Serverless.FunctionDefinitionHandler {
+  architecture?: string;
+  layers?: string[];
+}
 
 interface FunctionPluginConfiguration {
-  functionName: string;
+  serverlesFunction: ExtendedFunctionDefinition;
   axiomLayerArn: string;
   existingLayerArns?: string[];
 }
 
 export default class ServerlessAxiomLayerPlugin {
-  private serverless: ServerlessInstance;
-  private options: Options;
+  private serverless: Serverless;
+  private options: Serverless.Options;
   private axiomLayerVersion: number;
   private axiomAccount: number;
   private defaultArchitecture: string;
   private axiomLayerName: string;
   private enabled: boolean;
 
-  public hooks: { [key: string]: () => Promise<void> };
+  public hooks: { [key: string]: () => Promise<void> | void };
 
-  constructor(serverless: ServerlessInstance, options: Options) {
+  constructor(serverless: Serverless, options: Serverless.Options) {
     this.serverless = serverless;
     this.options = options;
     this.axiomLayerVersion = 4;
@@ -50,9 +34,9 @@ export default class ServerlessAxiomLayerPlugin {
     const axiomConfig = this.serverless.service.custom.axiom;
 
     if (axiomConfig) {
-      this.axiomAccount = axiomConfig.account || this.axiomAccount;
-      this.axiomLayerVersion = axiomConfig.layerVersion || this.axiomLayerVersion;
-      this.defaultArchitecture = axiomConfig.defaultArchitecture || this.defaultArchitecture;
+      this.axiomAccount = axiomConfig.account ?? this.axiomAccount;
+      this.axiomLayerVersion = axiomConfig.layerVersion ?? this.axiomLayerVersion;
+      this.defaultArchitecture = axiomConfig.defaultArchitecture ?? this.defaultArchitecture;
       this.enabled = axiomConfig.enabled !== undefined ? axiomConfig.enabled : this.enabled;
     }
 
@@ -60,20 +44,16 @@ export default class ServerlessAxiomLayerPlugin {
     this.serverless.cli.log(`Axiom Account: ${this.axiomAccount}`);
 
     this.hooks = {
-      'deployLayer:deploy': this.enabled
+      'before:package:createDeploymentArtifacts': this.enabled
         ? this.deployLayer.bind(this)
         : this.removeLayer.bind(this),
-      'after:deploy:deploy': this.enabled
+      'before:deploy:function:packageFunction': this.enabled
         ? this.deployLayer.bind(this)
         : this.removeLayer.bind(this),
     };
   }
 
-  async getAllFunctionsNamesAndAxiomArn(): Promise<FunctionPluginConfiguration[]> {
-    const AWS = this.serverless.providers.aws.sdk;
-    const lambda = new AWS.Lambda({
-      region: this.serverless.service.provider.region,
-    });
+  getAllFunctionsNamesAndAxiomArn(): FunctionPluginConfiguration[] {
     const AWS_REGION = this.serverless.service.provider.region;
     const functions = this.options.function
       ? [this.options.function]
@@ -82,23 +62,25 @@ export default class ServerlessAxiomLayerPlugin {
     const provider = this.serverless.service.provider as any;
     const result: FunctionPluginConfiguration[] = [];
     for (const func of functions) {
-      const f = this.serverless.service.getFunction(func);
-      const functionName = f.name;
-      const architecture = f.architecture || provider.architecture || this.defaultArchitecture;
+      const serverlesFunction: ExtendedFunctionDefinition = this.serverless.service.getFunction(
+        func,
+      ) as ExtendedFunctionDefinition;
+      if (serverlesFunction) {
+        const architecture =
+          serverlesFunction.architecture ?? provider.architecture ?? this.defaultArchitecture;
 
-      const functionConfiguration = await lambda
-        .getFunctionConfiguration({
-          FunctionName: functionName,
-        })
-        .promise();
-      const existingLayerArns = functionConfiguration?.Layers?.map((layer: any) => layer.Arn) ?? [];
+        const existingLayerArns = serverlesFunction.layers ?? [];
 
-      const AXIOM_LAYER_ARN = `arn:aws:lambda:${AWS_REGION}:${this.axiomAccount}:layer:${this.axiomLayerName}-${architecture}:${this.axiomLayerVersion}`;
-      result.push({
-        functionName,
-        axiomLayerArn: AXIOM_LAYER_ARN,
-        existingLayerArns,
-      });
+        const AXIOM_LAYER_ARN = `arn:aws:lambda:${AWS_REGION}:${this.axiomAccount}:layer:${this.axiomLayerName}-${architecture}:${this.axiomLayerVersion}`;
+        result.push({
+          serverlesFunction,
+          axiomLayerArn: AXIOM_LAYER_ARN,
+          existingLayerArns,
+        });
+        this.serverless.cli.log(`Function ${serverlesFunction.name} pushed`);
+      } else {
+        this.serverless.cli.log(`Function ${func} not found`);
+      }
     }
     return result;
   }
@@ -107,30 +89,20 @@ export default class ServerlessAxiomLayerPlugin {
     return existingLayerArns.filter((layerArn) => !layerArn.includes(this.axiomLayerName));
   }
 
-  async deployLayer(): Promise<void> {
-    const AWS = this.serverless.providers.aws.sdk;
-    const lambda = new AWS.Lambda({
-      region: this.serverless.service.provider.region,
-    });
-
+  deployLayer(): void {
     try {
-      for (const functionPluginConfiguration of await this.getAllFunctionsNamesAndAxiomArn()) {
+      for (const functionPluginConfiguration of this.getAllFunctionsNamesAndAxiomArn()) {
         const {
-          functionName,
+          serverlesFunction,
           axiomLayerArn,
           existingLayerArns: existingLayers,
         } = functionPluginConfiguration;
-        this.serverless.cli.log(`Adding Axiom layer ${axiomLayerArn} to ${functionName}`);
+        this.serverless.cli.log(`Adding Axiom layer ${axiomLayerArn} to ${serverlesFunction.name}`);
         const layersWithoutAxiom = this.removeAxiomLayer(existingLayers);
 
-        await lambda
-          .updateFunctionConfiguration({
-            FunctionName: functionName,
-            Layers: layersWithoutAxiom.concat(axiomLayerArn),
-          })
-          .promise();
+        serverlesFunction.layers = layersWithoutAxiom.concat(axiomLayerArn);
 
-        this.serverless.cli.log(`Added Axiom layer ${axiomLayerArn} to ${functionName}`);
+        this.serverless.cli.log(`Added Axiom layer ${axiomLayerArn} to ${serverlesFunction.name}`);
       }
     } catch (err: any) {
       this.serverless.cli.log(err);
@@ -138,29 +110,19 @@ export default class ServerlessAxiomLayerPlugin {
   }
 
   async removeLayer(): Promise<void> {
-    const AWS = this.serverless.providers.aws.sdk;
-    const lambda = new AWS.Lambda({
-      region: this.serverless.service.provider.region,
-    });
-
     try {
-      for (const functionPluginConfiguration of await this.getAllFunctionsNamesAndAxiomArn()) {
-        const {
-          functionName,
-          axiomLayerArn,
-          existingLayerArns: existingLayers,
-        } = functionPluginConfiguration;
-        this.serverless.cli.log(`Removing Axiom layer ${axiomLayerArn} from ${functionName}`);
-        const layersWithoutAxiom = this.removeAxiomLayer(existingLayers);
+      for (const functionPluginConfiguration of this.getAllFunctionsNamesAndAxiomArn()) {
+        const { serverlesFunction, axiomLayerArn, existingLayerArns } = functionPluginConfiguration;
+        this.serverless.cli.log(
+          `Removing Axiom layer ${axiomLayerArn} from ${serverlesFunction.name}`,
+        );
+        const layersWithoutAxiom = this.removeAxiomLayer(existingLayerArns);
 
-        await lambda
-          .updateFunctionConfiguration({
-            FunctionName: functionName,
-            Layers: layersWithoutAxiom,
-          })
-          .promise();
+        serverlesFunction.layers = layersWithoutAxiom;
 
-        this.serverless.cli.log(`Removed Axiom layer ${axiomLayerArn} from ${functionName}`);
+        this.serverless.cli.log(
+          `Removed Axiom layer ${axiomLayerArn} from ${serverlesFunction.name}`,
+        );
       }
     } catch (err: any) {
       this.serverless.cli.log(err);
