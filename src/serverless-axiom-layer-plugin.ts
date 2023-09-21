@@ -91,12 +91,13 @@ export default class ServerlessAxiomLayerPlugin {
           FunctionName: functionName,
         })
         .promise();
+      const existingLayerArns = functionConfiguration?.Layers?.map((layer: any) => layer.Arn) ?? [];
 
       const AXIOM_LAYER_ARN = `arn:aws:lambda:${AWS_REGION}:${this.axiomAccount}:layer:${this.axiomLayerName}-${architecture}:${this.axiomLayerVersion}`;
       result.push({
         functionName,
         axiomLayerArn: AXIOM_LAYER_ARN,
-        existingLayerArns: functionConfiguration.Layers.map((layer: any) => layer.Arn),
+        existingLayerArns,
       });
     }
     return result;
