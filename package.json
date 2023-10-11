@@ -1,6 +1,6 @@
 {
   "name": "@spytecgps/serverless-axiom-layer-plugin",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "This plugin will add Axiom layer to your lambda functions",
   "main": "dist/index.js",
   "private": false,
@@ -9,7 +9,8 @@
     "lint": "eslint 'src/**/*.{js,ts,tsx}'",
     "format": "prettier --ignore-path .gitignore --write . !**.md",
     "format-check": "prettier --ignore-path .gitignore --check . !**.md",
-    "build": "tsc"
+    "build": "tsc",
+    "publish-prod": "tsc && npm publish"
   },
   "keywords": [
     "serverless",
