@@ -3,6 +3,10 @@ import * as Serverless from 'serverless';
 export interface ExtendedFunctionDefinition extends Serverless.FunctionDefinitionHandler {
   architecture?: string;
   layers?: string[];
+  axiom?: {
+    fullLayerArn?: string;
+    axiomLayerVersion?: number;
+  };
 }
 
 interface FunctionPluginConfiguration {
@@ -19,17 +23,19 @@ export default class ServerlessAxiomLayerPlugin {
   private defaultArchitecture: string;
   private axiomLayerName: string;
   private enabled: boolean;
+  private fullLayerArn: string | null;
 
   public hooks: { [key: string]: () => Promise<void> | void };
 
   constructor(serverless: Serverless, options: Serverless.Options) {
     this.serverless = serverless;
     this.options = options;
-    this.axiomLayerVersion = 4;
+    this.axiomLayerVersion = 5;
     this.axiomAccount = 694952825951;
     this.defaultArchitecture = 'x86_64';
     this.axiomLayerName = 'axiom-extension';
     this.enabled = true;
+    this.fullLayerArn = null;
 
     const axiomConfig = this.serverless.service.custom.axiom;
 
@@ -38,6 +44,7 @@ export default class ServerlessAxiomLayerPlugin {
       this.axiomLayerVersion = axiomConfig.layerVersion ?? this.axiomLayerVersion;
       this.defaultArchitecture = axiomConfig.defaultArchitecture ?? this.defaultArchitecture;
       this.enabled = axiomConfig.enabled !== undefined ? axiomConfig.enabled : this.enabled;
+      this.fullLayerArn = axiomConfig.fullLayerArn ?? null;
     }
 
     this.serverless.cli.log(`Axiom Layer Version: ${this.axiomLayerVersion}`);
@@ -71,7 +78,14 @@ export default class ServerlessAxiomLayerPlugin {
 
         const existingLayerArns = serverlesFunction.layers ?? [];
 
-        const AXIOM_LAYER_ARN = `arn:aws:lambda:${AWS_REGION}:${this.axiomAccount}:layer:${this.axiomLayerName}-${architecture}:${this.axiomLayerVersion}`;
+        const AXIOM_LAYER_VERSION =
+          serverlesFunction.axiom?.axiomLayerVersion ?? this.axiomLayerVersion;
+
+        const AXIOM_LAYER_ARN =
+          serverlesFunction.axiom?.fullLayerArn ??
+          this.fullLayerArn ??
+          `arn:aws:lambda:${AWS_REGION}:${this.axiomAccount}:layer:${this.axiomLayerName}-${architecture}:${AXIOM_LAYER_VERSION}`;
+
         result.push({
           serverlesFunction,
           axiomLayerArn: AXIOM_LAYER_ARN,
