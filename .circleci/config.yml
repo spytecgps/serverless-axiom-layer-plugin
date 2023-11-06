@@ -119,14 +119,14 @@ workflows:
             - slack
           filters:
             branches:
-              only: master
+              only: main
       - approval:
           type: approval
           requires:
             - build
           filters:
             branches:
-              only: master
+              only: main
       - publish:
           name: publish
           requires:
