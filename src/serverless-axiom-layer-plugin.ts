@@ -30,7 +30,7 @@ export default class ServerlessAxiomLayerPlugin {
   constructor(serverless: Serverless, options: Serverless.Options) {
     this.serverless = serverless;
     this.options = options;
-    this.axiomLayerVersion = 5;
+    this.axiomLayerVersion = 6;
     this.axiomAccount = 694952825951;
     this.defaultArchitecture = 'x86_64';
     this.axiomLayerName = 'axiom-extension';

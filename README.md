@@ -24,7 +24,7 @@ Specify the Axiom plugin configuration:
 custom:
   axiom:
     account: YOUR_AXIOM_ACCOUNT                     # Default: 694952825951
-    layerVersion: YOUR_AXIOM_LAYER_VERSION          # Default: 5
+    layerVersion: YOUR_AXIOM_LAYER_VERSION          # Default: 6
     defaultArchitecture: YOUR_DEFAULT_ARCHITECTURE  # Default: x86_64
     enabled: true/false                             # Default: true
     fullLayerArn: THE_FULL_AXIOM_LAYER_ARN          # Default: null
