@@ -1,6 +1,6 @@
 {
   "name": "@spytecgps/serverless-axiom-layer-plugin",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "This plugin will add Axiom layer to your lambda functions",
   "main": "dist/index.js",
   "private": false,
