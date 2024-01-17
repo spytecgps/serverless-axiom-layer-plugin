@@ -8,7 +8,7 @@ Using the Axiom layer v6 that will include as events attributes in the dataset:
 - Level of the log: INFO, WARN, ERROR or DEBUG (debug or trace)
 - The message
 
-## [0.0.18] - 2024-01-17
+## [0.0.19] - 2024-01-17
 
 Using the Axiom layer v11 with some features and fixes:
 - A message attribute will always contains the logged string.
