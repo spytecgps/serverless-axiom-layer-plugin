@@ -76,7 +76,7 @@ export default class ServerlessAxiomLayerPlugin {
         const architecture =
           serverlesFunction.architecture ?? provider.architecture ?? this.defaultArchitecture;
 
-        const existingLayerArns = serverlesFunction.layers ?? [];
+        const existingLayerArns = serverlesFunction.layers ?? provider.layers ?? [];
 
         const AXIOM_LAYER_VERSION =
           serverlesFunction.axiom?.axiomLayerVersion ?? this.axiomLayerVersion;
