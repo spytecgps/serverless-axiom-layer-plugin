@@ -3,89 +3,55 @@ orbs:
   slack: circleci/slack@3.4.2
 
 commands:
-
   install_deps:
     description: Install dependencies
     steps:
       - run:
-          name: Setup NPM Token 
+          name: Setup NPM Token
           command: |
             echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
       - restore_cache:
-          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+          key: deps-{{ checksum "yarn.lock" }}
       - run:
           name: Install dependencies
-          command: npm ci
+          command: yarn install --frozen-lockfile
       - save_cache:
-          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+          key: deps-{{ checksum "yarn.lock" }}
           paths:
             - node_modules
 
-  notify_approval:
-    description: Send approval notification
-    parameters:
-      stage:
-        default: 'dev'
-        type: string
-    steps:
-      - slack/approval:
-          message: '*${CIRCLE_PROJECT_REPONAME}* ${CIRCLE_BRANCH} ${CIRCLE_SHA1:0:7} Waiting for approval to deploy to <<parameters.stage>>'
-          webhook: '${WEBHOOK_URL}'
-          include_job_number_field: false
-          include_project_field: false
-
-  notify_deploy:
-    description: Send deploy notification
-    parameters:
-      stage:
-        default: 'dev'
-        type: string
-    steps:
-      - slack/notify:
-          message: '*${CIRCLE_PROJECT_REPONAME}* ${CIRCLE_BRANCH} ${CIRCLE_SHA1:0:7} deployed by *${CIRCLE_USERNAME}* to <<parameters.stage>>'
-          webhook: '${WEBHOOK_URL}'
-          include_job_number_field: false
-          include_project_field: false
-
-  run_unit_tests:
-    description: Unit tests
+  lint_and_typecheck:
+    description: Run ESLint and TypeScript type checking
     steps:
       - run:
-          name: Unit tests
-          command: npm run test
-      - store_test_results:
-          path: ./reports/junit/
-      - store_artifacts:
-          path: coverage
+          name: Lint
+          command: yarn lint
+      - run:
+          name: Type check
+          command: yarn type-check
 
 jobs:
-
   build:
     docker:
-      - image: cimg/node:14.21
+      - image: cimg/node:22.22.0
+    resource_class: large
     steps:
       - checkout
       - install_deps
-      - run_unit_tests
+      - lint_and_typecheck
+      - run:
+          name: Build
+          command: yarn build
       - persist_to_workspace:
           root: .
           paths: .
-
-  notify-approval:
-    description: Wait for approval to publish
-    docker:
-      - image: cimg/node:14.21
-    working_directory: ~/app
-    steps:
-      - attach_workspace:
-          at: ~/app
-      - notify_approval
 
   publish:
     description: Bump version and publish package to npm
     working_directory: ~/app
     docker:
-      - image: cimg/node:14.21
+      - image: cimg/node:22.22.0
+    resource_class: large
     steps:
       - attach_workspace:
           at: ~/app
@@ -97,12 +63,11 @@ jobs:
             ssh-keyscan github.com >> ~/.ssh/known_hosts
             git config --global user.email "circle-ci@$GITHUB_ORG.io"
             git config --global user.name "circle-ci"
-            npm version patch -m "ci: bumped version to %s [ci skip]\r bumped version to %s [ci skip]"
+            npm version patch -m "Bumped version to %s [ci skip]"
             git push -u origin ${CIRCLE_BRANCH} && git push --tags
       - run:
           name: Publish to npm
           command: npm publish
-      - notify_deploy
 
 workflows:
   version: 2
@@ -111,15 +76,6 @@ workflows:
       - build:
           context:
             - npm-global
-      - notify-approval:
-          name: notify-approval
-          requires:
-            - build
-          context:
-            - slack
-          filters:
-            branches:
-              only: main
       - approval:
           type: approval
           requires:
